@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Βρες τους γείτονες</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <script src="countries.js">
+    </script>
+    <script defer>
+        // Ένας βοηθητικός πίνακας που θα περιέχει τις χώρες από το countries.js σε λίγο πιο βολική μορφή
+        // πχ. allCountries['GRE'] = { code2: "GR", name: "Greece"}, ή κάτι παρόμοιο 
+        const allCountries = new Array()
+        for(var country2 in countryObjects){
+            allCountries[countryObjects[country2].code3] = { 
+                code2: countryObjects[country2].code, 
+                name: countryObjects[country2].name
+            };
+        }
+
+        // Εδώ μπορείτε να βάλετε τον κώδικα για όλο το παιχνίδι
+        // Μπορείτε γράψετε κλάσεις που να έχουν κάποια συμπεριφορά, 
+        // π.χ. Game, PlayingCountry, Neighbour, ...
+        // ή να και ακολουθήσετε άλλη τακτική, που να σας είναι πιο προσιτή
+
+        document.addEventListener("DOMContentLoaded", () => {
+            //start a new Game
+            init();
+
+            //event listener to new game button
+            document.querySelector("#btn-new-game").addEventListener("click", () => {
+                if (confirm('Σίγουρα; Θα χάσετε όλο το σκορ! ')) {
+                    document.querySelector(".fail").style.display = 'none';
+                    init();
+                } else {
+                    document.querySelector(".fail").style.display = 'none';
+                }
+            })
+
+            //event listener to next round button
+            document.querySelector("#btn-next-round").addEventListener("click", () => {
+                // Eνεργοποίηση του κουμπιού επόμενη χώρα.
+                document.querySelector('#btn-next-round').disabled = true;
+                document.querySelector('.success').style.display = "none";
+                round++;
+                document.querySelector('#round').innerHTML = round;
+                resetPanel();
+                selectCountry();
+            })
+        });
+    </script>
+</head>
+
+<body>
+    <div class="game-panel">
+        <!-- 
+                Γράψτε εδώ τον κώδικα HTML που χρειάζεστε για το παιχνίδι.
+                Κάποια από τα στοιχεία (elements) της σελίδας προστίθενται και
+                αφαιρούνται δυναμικά, μέσα από τη JavaScript, π.χ. οι σημαίες 
+                των γειτονικών χωρών κ.ά.
+            -->
+            <div id="sidebar">
+                <header>
+                    Βρες τους γείτονες<br><br>
+                </header>
+                <div id="next-round-panel">
+                    <div>Γύρος: </div>
+                    <div id="round"></div>
+                </div>
+                <div id="score">
+                    <div>Σκόρ: </div>
+                    <div id="score_now"></div>
+                </div>
+                <div id="buttons">
+                    <button id="btn-next-round" disabled>Επόμενη χώρα</button>
+                    <button id="btn-new-game">Νέο παιχνίδι</button>
+                </div>
+            </div> <!-- end of sidebar-->
+
+            <div id="my-country">
+                <div id="my-country-flag"></div>
+                <div id="my-country-name"></div>
+            </div>  <!-- end of my-country-->
+
+            <div id="progress">
+                <span id="progressBar"></span>
+            </div>  <!-- end of progress-->
+
+            <div id="neighbours-panel">
+                <div class="main" id="central">
+                </div>
+                <div class="main success">
+                    <div class="text">
+                        Τους βρήκατε όλους!
+                    </div>
+                </div>
+                <div class="main fail">
+                    <div class="text">
+                        Κρίμα, χάσατε!                        
+                    </div>
+                </div>
+            </div>   <!-- end of neighbours-panel -->
+
+    </div>
+</body>
+<script>
+//Το παρακάτω αφορά μόνο τους χρήστες macOS.
+if (navigator.appVersion.indexOf("Macintosh")>0){
+  document.body.style.fontFamily = '"Open Sans"';
+}
+</script>
+<script defer>
+// initialize variables
+var score = 0;
+var round = 1;
+var correctAnswer = 0;
+var wrongAnswer = 0;
+var percentage = 0;         // percentage of correct answers
+var totalNeighbours = 0;    // Number of Neighbours
+var totalCountries =0;      // Counter of countries
+var flagNeighbour;
+
+
+var progressBar = document.querySelector("#progressBar");
+const nearbyCountries = [];
+const gamePanelCountries = [];
+const urlCode = "https://restcountries.eu/rest/v2/alpha/";
+
+// var bordersCountry = document.querySelectorAll("div.neighbour");
+var bordersCountry = document.getElementsByClassName("neighbour");
+
+function init() { 
+    resetGame();  
+    selectCountry();
+}
+
+function resetGame() {
+    score=0;
+    round = 1;
+    document.querySelector('#round').innerHTML = round;  
+    document.querySelector('#score_now').innerHTML = score;
+    resetPanel();
+}
+
+function updateScore(points) {
+    score += points;
+    document.querySelector('#score_now').innerHTML = score;
+}
+
+// Επιλέγει την χώρα που ψάχνουε τους γείτονες
+function selectCountry() {
+    // Ανακατεύει τις χώρες με τυχαίο τρόπο με τη βοήθεια του αλγοριθμου Fisher-Yates 
+    shuffleArray(countryObjects);
+
+    // Δημιουργία της χώρας
+    document.querySelector("#my-country-flag").innerHTML = country2emoji2(countryObjects[0].code);
+    document.querySelector("#my-country-name").innerHTML = countryObjects[0].name;
+
+    // Βρίσκω τους γείτονες.
+    findBorders(countryObjects[0].code);
+}
+
+// Επιστρέφει τους γείτονες μιας χώρας
+function findBorders(code2) {
+    fetch(urlCode + code2)
+    .then((response) => {
+        if (response.status === 200) {
+            return response.json();
+        } //else throw new Error(response.status);
+        else { selectCountry(); }
+    })
+    .then((data) => {
+        if (data.borders.length > 0) { // οι κωδικοί των γειτόνων
+            data.borders.forEach((item) => {
+                nearbyCountries.push(allCountries[item].name);
+                gamePanelCountries.push({code:item, isNeighbour:true});
+            });
+            Promise.all(nearbyCountries) //  array από Promises
+            .then((neighboursNames) => {
+                totalNeighbours = neighboursNames.length;
+                percentage = 100 / totalNeighbours;
+                totalCountries = 3*totalNeighbours;
+                createRandomCountries();
+                console.log(`H χώρα συνορεύει με τις εξής ${totalNeighbours} χώρες: ${neighboursNames}`);
+                shuffleArray(gamePanelCountries);
+                neighbours = document.querySelector('#central');
+                for (let index = 0; index < gamePanelCountries.length; index++) {
+                    var theCountryCode3 = gamePanelCountries[index].code;
+                    var theCountryCode2 = allCountries[theCountryCode3].code2;
+                    var theCountryName = allCountries[theCountryCode3].name;
+                    var isNeighbourBolean = gamePanelCountries[index].isNeighbour;
+                    createCountryDiv(theCountryName, theCountryCode2, isNeighbourBolean);
+                }})
+    .catch((error) => {    
+        selectCountry(); 
+    });
+    } else { 
+        // console.log("No border!!!");
+        selectCountry(); 
+    }
+});
+}
+
+function createCountryDiv(countryName, countryCode, validBorder) {
+    var playerScore = document.querySelector('#score_now');
+    var flagNeighbour = country2emoji2(countryCode);
+    var neighbourDiv = document.createElement("div"); 
+    
+    neighbourDiv.classList.add('neighbour');
+    if(validBorder == true){
+        neighbourDiv.classList.add('neighbour-is-valid');
+    } else {
+        neighbourDiv.classList.add('neighbour-is-invalid');
+    }
+    neighbourDiv.addEventListener("click", function() {
+        this.classList.add("was-clicked");
+        if(validBorder == true){
+            correctAnswer++;
+            progressBar.style.width = (correctAnswer * percentage) + '%';
+            updateScore(5);
+        } else {
+            wrongAnswer++;
+            updateScore(-3);
+        }
+        this.removeEventListener("click", this);
+        if(correctAnswer == totalNeighbours) {
+            // Eνεργοποίηση του κουμπιού επόμενη χώρα.
+            document.querySelector('#btn-next-round').disabled = false;
+            document.querySelector('.success').style.display = "grid";
+        } else if(wrongAnswer == totalNeighbours) {
+            document.querySelector('.fail').style.display = "grid";
+        } 
+    },{
+        once:true
+    });
+
+    var neighbourText = '<div class="neighbourFlag">';
+    neighbourText += flagNeighbour;
+    neighbourText +=  '</div><div class="neighbourName">';
+    neighbourText += countryName;
+    neighbourText += '</div>';
+    neighbourDiv.innerHTML = neighbourText;
+
+    neighbours.appendChild(neighbourDiv);
+}
+
+function createRandomCountries(){
+    var countries = totalNeighbours+1;
+    console.log(gamePanelCountries);
+
+    while ( countries <= totalCountries ) {
+        countryNumber = Math.floor(Math.random() * 250);
+        fakeCountryCode = countryObjects[countryNumber].code3;
+        var countryExists = false;
+
+        // Check if country already exists
+        for (let index = 0; index < gamePanelCountries.length; index++) {
+            // console.log(gamePanelCountries[index].code);
+            if(fakeCountryCode == gamePanelCountries[index].code){
+                countryExists = true;
+            }
+        }
+
+        // If not exists insert country to country table
+        if(!countryExists){
+            gamePanelCountries.push({code:fakeCountryCode, isNeighbour:false});
+            countries++;
+        }
+    }
+} 
+
+function resetPanel(){
+    // reset correct & wrong answers counters
+    correctAnswer = 0;
+    wrongAnswer = 0;
+    // reset percentence of progress bar
+    percentage =0;
+    progressBar.style.width =0;
+    // reset 2 tables of neighbours
+    while(nearbyCountries.length > 0) {
+        nearbyCountries.pop();
+    }
+    while(gamePanelCountries.length > 0) {
+        gamePanelCountries.pop();
+    }
+    // clear the flags of neighbours
+    document.querySelector('.main').innerHTML = "";
+}
+
+</script>
+</html>
